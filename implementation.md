@@ -1,0 +1,951 @@
+# State (.agent) Implementation Plan
+
+**Vision**: Create the "PDF of the Agentic Era" - a portable context standard that packages AI conversations, semantic maps, terminal history, and future plans into a single .agent file.
+
+**Target Platforms**: Web + Desktop
+**Desktop Framework**: Tauri (selected after Phase 0 evaluation)
+**File Format**: Hybrid (ZIP archive + JSON metadata + binary blobs)
+
+---
+
+## Phase 0: Research & Validation ✅ COMPLETE
+
+**Status**: Phase 0 research complete. Key findings incorporated into this implementation plan.
+
+**Critical Decisions**:
+- ✅ **Desktop Framework**: Tauri selected (96% smaller bundles than Electron)
+- ✅ **MVP Importers**: Claude Code + ChatGPT (both viable, legal risk low)
+- ❌ **Cursor Importer**: DEFERRED due to ToS/legal risks
+- ✅ **Legal Compliance**: MIT License, AES-256 encryption export-friendly
+- ✅ **User Validation**: Strong market need confirmed
+
+**For complete Phase 0 findings**, see `phase-0-report.md`.
+
+---
+
+## Phase 1: Foundation & Specification
+
+### 1.1 Define .agent File Format Specification
+**Tasks:**
+- [ ] Create `.agent/spec/schema.json` - JSON schema for manifest
+- [ ] Define directory structure for ZIP archive:
+  ```
+  manifest.json          # Metadata, timestamps, tool info
+  conversation/          # AI conversation history
+    - messages.json
+    - context.json
+  semantic-map/          # Project structure & code graph
+    - file-tree.json
+    - dependencies.json
+    - embeddings.bin     # Optional: vector embeddings
+  terminal/              # Command outputs
+    - sessions.json
+    - outputs.log
+  future-plan/           # Next steps & action items
+    - plan.md
+    - tasks.json
+  assets/                # Screenshots, files, etc.
+    - blobs/
+  ```
+- [ ] Write `.agent/spec/versioning.md` - Format versioning strategy
+- [ ] Document `.agent/spec/contributing.md` - How to add tool support
+
+**Deliverable**: Complete .agent format specification document
+
+### 1.2 Technology Stack
+**Selected Technologies** (based on Phase 0 evaluation):
+
+**Desktop Framework**: **Tauri**
+- Rationale: 96% smaller bundles (3-10 MB vs 100-200 MB), faster startup (<1s), better security model
+- Language: Rust (backend) + TypeScript/JavaScript (frontend)
+
+**Web Framework**: Next.js 14 with App Router
+- Rationale: Modern React framework with excellent performance and DX
+
+**ZIP Library**: JSZip
+- Rationale: Mature, well-documented, works in browser and Node.js
+- Security: Will add custom validation wrappers
+
+**Monorepo Structure**:
+```
+state/
+├── packages/
+│   ├── format/        # Core .agent format lib
+│   ├── cli/           # CLI tool
+│   ├── importer/      # AI tool importers
+│   ├── viewer-web/    # Web viewer
+│   └── viewer-desktop/# Desktop app (Tauri)
+├── docs/
+└── examples/
+```
+
+**Deliverable**: `tech-stack.md` with rationale and setup scripts
+
+### 1.3 Project Setup & CI/CD
+**Tasks:**
+- [ ] Initialize git repository
+- [ ] Set up pnpm workspace for monorepo
+- [ ] Configure TypeScript with strict mode
+- [ ] Set up ESLint, Prettier, Husky pre-commit hooks
+- [ ] Configure GitHub Actions CI:
+  - Run tests on all packages
+  - Build desktop app for Windows/Mac/Linux
+  - Deploy web viewer to Vercel/Netlify
+- [ ] Set up documentation site (VitePress/Docsify)
+
+**Deliverable**: Working monorepo with CI/CD pipeline
+
+---
+
+## Phase 2: Core .agent Format Implementation
+
+### 2.1 Core Format Library (`packages/format/`)
+**Tasks:**
+- [ ] Create `AgentFile` class:
+  ```typescript
+  class AgentFile {
+    create(): AgentFile
+    addConversation(messages: Message[]): void
+    addSemanticMap(map: SemanticMap): void
+    addTerminalHistory(sessions: Session[]): void
+    addFuturePlan(plan: Plan): void
+    addAsset(file: Buffer, path: string): void
+    save(path: string): Promise<void>
+    static load(path: string): Promise<AgentFile>
+    validate(): ValidationResult
+    verifySignature(): Promise<boolean>  // Security: cryptographic verification
+    encrypt(password: string): Promise<void>  // Security: AES-256-GCM
+    decrypt(password: string): Promise<void>
+  }
+  ```
+- [ ] Implement ZIP creation/parsing with security
+  - **Security**: Validate ZIP bomb protection (maximum uncompressed size 10x compressed)
+  - **Security**: Prevent directory traversal attacks in ZIP entries
+  - **Security**: Validate file paths don't escape sandbox
+  - **Security**: Maximum file size limits (100MB per asset, 500MB total)
+  - **Security**: Maximum entry count (10,000 entries)
+- [ ] Add JSON schema validation for all components
+  - **Security**: Sanitize all JSON input to prevent prototype pollution
+  - **Security**: Depth limits on nested structures (max 50 levels)
+  - **Security**: String length limits (max 1MB per string)
+- [ ] Implement incremental updates (append-only mode)
+  - **Security**: Verify integrity of existing data before appending
+  - **Security**: Include hash chain for tamper detection
+- [ ] Add encryption support (optional, for sensitive data)
+  - **Security**: Use AES-256-GCM for authenticated encryption
+  - **Security**: PBKDF2 with 600,000 iterations for key derivation
+  - **Security**: Random IV for each encryption operation
+  - **Security**: Include encryption metadata in manifest
+- [ ] Add digital signature support
+  - **Security**: Ed25519 signatures for authenticity verification
+  - **Security**: Key binding to creator identity
+  - **Security**: Signature verification on load
+- [ ] Write comprehensive unit tests (>95% coverage)
+  - **Security tests**: Malicious file injection attempts
+  - **Security tests**: ZIP bomb protection
+  - **Security tests**: Path traversal payloads
+  - **Security tests**: Prototype pollution attempts
+  - **Security tests**: Overflow/underflow scenarios
+  - **Fuzz tests**: Invalid JSON, corrupt ZIP data
+  - **Property tests**: Round-trip serialization invariants
+
+**Deliverable**: `@state/format` npm package
+
+**Security Requirements:**
+- All file paths validated against allowlist (a-zA-Z0-9._-/)
+- Maximum file size: 100MB for individual assets, 500MB total
+- Maximum entry count: 10,000 files in ZIP
+- Memory limit: 1GB during parsing
+- All external data sanitized before processing
+- No code execution from .agent files
+- Cryptographic integrity checks (SHA-256 for all components)
+
+### 2.2 Semantic Map Generation
+**Tasks:**
+- [ ] Implement file tree scanner:
+  - Recursively scan project directories
+  - Detect file types (language detection)
+  - Extract file metadata (size, modified date)
+- [ ] Build dependency graph:
+  - Parse import statements (JS/TS, Python, etc.)
+  - Extract package.json dependencies
+  - Map file relationships
+- [ ] Create code summarization:
+  - Extract function/class signatures
+  - Generate file-level summaries
+    - Option: Use LLM API for intelligent summaries
+- [ ] Export to `semantic-map/` structure
+
+**Deliverable**: Semantic map generator with support for 5+ languages
+
+### 2.3 Future Plan Parser
+**Tasks:**
+- [ ] Detect and extract TODOs from conversation
+- [ ] Parse structured plans (Markdown, JSON, task lists)
+- [ ] Identify next steps from unstructured text
+- [ ] Create task hierarchy with dependencies
+- [ ] Export to `future-plan/plan.md` and `tasks.json`
+
+**Deliverable**: Plan parser with 80%+ accuracy on test conversations
+
+---
+
+## Phase 3: Importer Development
+
+### 3.1 Claude Importer (`packages/importer/claude/`)
+**Priority**: P0 (MVP - confirmed viable in Phase 0)
+
+**Tasks:**
+- [ ] Implement local conversation import:
+  - Read from Claude Code local storage
+  - Location: `~/.claude/conversations/` (macOS/Linux), `%APPDATA%\claude\` (Windows)
+- [ ] Implement API-based import:
+  - Use Anthropic Messages API for conversation retrieval
+  - Support user-provided API keys
+- [ ] Parse Claude conversation JSON:
+  - Extract messages (user/assistant)
+  - Preserve context tokens, citations
+  - Extract tool use/function calls
+- [ ] Capture terminal context from Claude Code sessions
+- [ ] Extract artifacts (files created during conversation)
+- [ ] Create `claude-to-agent.ts` converter
+- [ ] Test with real Claude conversations (10+ samples)
+
+**Deliverable**: `@state/importer-claude` package
+
+**Legal Status**: ✅ Low risk - users own conversation data, export permitted
+
+---
+
+### 3.2 ChatGPT Importer (`packages/importer/chatgpt/`)
+**Priority**: P0 (MVP - confirmed viable in Phase 0)
+
+**Tasks:**
+- [ ] Implement official export parser:
+  - Guide users to export via OpenAI privacy portal
+  - Parse ChatGPT export JSON format
+  - Handle exported ZIP structure
+- [ ] Extract conversation threads
+- [ ] Parse code blocks and artifacts
+- [ ] Handle GPT-specific features:
+  - DALL-E images (handle expired URLs)
+  - Code Interpreter outputs
+  - Custom instructions
+- [ ] Create `chatgpt-to-agent.ts` converter
+- [ ] Test with sample exports
+
+**Deliverable**: `@state/importer-chatgpt` package
+
+**Legal Status**: ✅ Very low risk - official export mechanism provided, GDPR compliant
+
+---
+
+### 3.3 Manual/Clipboard Importer
+**Priority**: P1 (MVP - for tools without official APIs)
+
+**Tasks:**
+- [ ] Create CLI command: `state import --clipboard`
+- [ ] Parse conversation from clipboard content
+- [ ] Support multiple formats:
+  - Markdown conversations
+  - Plain text with AI/USER markers
+  - JSON snippets
+- [ ] Detect source tool automatically
+- [ ] Create interactive prompts for missing metadata
+
+**Use Cases**:
+- Cursor conversations (copy-paste workflow)
+- AI tools without APIs
+- Partial conversation exports
+- Quick ad-hoc imports
+
+**Deliverable**: Clipboard import functionality in CLI
+
+---
+
+### 3.4 Alternative AI Tool Importers (Post-MVP)
+
+**Priority**: P2-P3 (community contributions or future releases)
+
+#### 3.4.1 Windsurf (Codeium) Importer
+**Status**: Unknown feasibility - requires research
+
+**Tasks**:
+- [ ] Research Windsurf local storage format
+- [ ] Check for export APIs
+- [ ] Assess legal ToS implications
+- [ ] Build importer if viable
+
+---
+
+#### 3.4.2 GitHub Copilot Chat Importer
+**Status**: Different product category - inline suggestions, not full conversations
+
+**Alternative**: Consider integration if Copilot Chat adds conversation export
+
+---
+
+#### 3.4.3 Sourcegraph Cody Importer
+**Status**: Lower priority - smaller user base
+
+**Tasks**:
+- [ ] Research Cody conversation storage
+- [ ] Check for export functionality
+- [ ] Assess feasibility
+
+---
+
+#### 3.4.4 Continue.dev Importer
+**Status**: Lower priority - open source, community may build
+
+**Tasks**:
+- [ ] Document Continue conversation format
+- [ ] Provide plugin API for community
+- [ ] Support community contributions
+
+---
+
+#### 3.4.5 Tabnine Importer
+**Status**: Lower priority - smaller user base
+
+**Tasks**:
+- [ ] Research Tabnine conversation features
+- [ ] Assess export capabilities
+
+---
+
+### 3.5 Generic/Custom Importer
+**Priority**: P1 (MVP)
+
+**Tasks:**
+- [ ] Define simple JSON format for custom .agent creation:
+  ```json
+  {
+    "conversation": [...],
+    "files": [...],
+    "terminal": [...],
+    "plan": "..."
+  }
+  ```
+- [ ] Create CLI command: `state init --custom`
+- [ ] Support importing from markdown files
+- [ ] Create template generator
+- [ ] Document plugin API for community importers
+
+**Deliverable**: Generic importer and CLI integration
+
+---
+
+## Phase 4: Viewer Development
+
+### 4.1 Web Viewer (`packages/viewer-web/`)
+**Tasks:**
+- [ ] Set up Next.js 14 with App Router
+- [ ] Design UI/UX:
+  - Split-pane layout (conversation | semantic map | plan)
+  - Dark mode support
+  - Responsive design
+- [ ] Implement file upload/drag-drop:
+  - Parse .agent file in browser
+  - Display loading progress
+  - Implement streaming for large files
+- [ ] Build conversation viewer:
+  - Render messages with syntax highlighting
+  - Support code blocks with copy button
+  - Show images and artifacts
+  - Search/filter messages
+  - Virtual scrolling for large conversations (10k+ messages)
+- [ ] Build semantic map viewer:
+  - Interactive file tree
+  - Dependency graph visualization (Cytoscape.js or D3.js)
+  - File preview panel
+  - Lazy loading for large projects
+- [ ] Build terminal history viewer:
+  - Syntax-highlighted terminal output
+  - Filterable by command/session
+- [ ] Build future plan viewer:
+  - Render markdown plan
+  - Interactive task checklist
+  - Progress tracking
+- [ ] Add export features:
+  - Export to PDF
+  - Export conversation to markdown
+  - Shareable URL (if hosted)
+
+**Deliverable**: Deployed web viewer
+
+**Performance Targets**:
+- Load 1MB .agent file: <100ms
+- Render 100 messages: <500ms
+- Render 1k messages: <2s
+- Render 10k messages: <10s
+- Memory usage: <500MB
+
+---
+
+### 4.2 Desktop Viewer (`packages/viewer-desktop/`)
+**Framework**: Tauri (Rust + webview)
+
+**Tasks:**
+- [ ] Set up Tauri project
+- [ ] Implement native file picker:
+  - Double-click .agent file association
+  - Recent files menu
+  - Drag-and-drop support
+- [ ] Port web viewer UI to desktop:
+  - Reuse components from web viewer
+  - Add native menu bar
+  - Add keyboard shortcuts
+- [ ] Implement local file indexing:
+  - Index all .agent files on system
+  - Full-text search across conversations
+  - Tagging and folders
+- [ ] Add security features:
+  - **Application Sandboxing**:
+    - Use Tauri capabilities system
+    - Restrict file system access to user-selected directories
+    - Network access only for explicit user actions
+    - No subprocess execution from .agent content
+  - **Content Security**:
+    - Optional password protection for sensitive .agent files
+    - Secure password storage (OS credential manager)
+    - Memory encryption for decrypted content
+    - Screenshots blocked when password field active
+  - **File Validation**:
+    - Validate all .agent files before opening
+    - Warn on potentially malicious content
+    - Option to open in "safe mode" (read-only, no scripts)
+  - **Supply Chain Security**:
+    - Signed binaries (code signing certificates)
+    - Dependency scanning (npm audit, Snyk)
+    - Reproducible builds
+    - SBOM generation
+- [ ] Package for Windows, macOS, Linux:
+  - Windows: SmartScreen reputation build
+  - macOS: Notarization and hardened runtime
+  - Linux: AppImage with proper permissions
+
+**Deliverable**: Desktop installer for all platforms
+
+**Bundle Size Targets**:
+- Windows: <10 MB
+- macOS: <10 MB
+- Linux: <15 MB
+
+---
+
+## Phase 5: CLI Tool
+
+### 5.1 CLI Implementation (`packages/cli/`)
+**Tasks:**
+- [ ] Set up CLI framework (oclif or yargs)
+- [ ] Implement core commands:
+  ```bash
+  state init <dir>              # Create .agent from project
+  state import claude <path>     # Import from Claude Code
+  state import chatgpt <path>    # Import from ChatGPT export
+  state import --clipboard       # Import from clipboard
+  state view <file>              # Open in viewer
+  state export <file> --format md # Export to markdown
+  state validate <file>          # Validate .agent format
+  state search <query>           # Search .agent files
+  state server                   # Start local web viewer
+  ```
+- [ ] Add shell autocomplete
+- [ ] Create progress bars for long operations
+- [ ] Add verbose/debug logging
+- [ ] Write CLI documentation
+
+**Deliverable**: `@state/cli` npm package with global install
+
+---
+
+## Phase 6: Integration & Testing
+
+### 6.1 Testing Suite
+
+#### 6.1.1 Test Corpus Creation
+**Tasks:**
+- [ ] Create comprehensive test corpus:
+  - **Conversations**: Real conversations from Claude and ChatGPT
+  - **Project Sizes**: Small (<50 files), Medium (50-500 files), Large (500-5000 files), Enterprise (5000+ files)
+  - **Languages**: 20+ programming languages coverage
+  - **Edge Cases**:
+    - Empty conversations
+    - Conversations with 10,000+ messages
+    - Binary files (images, PDFs, videos)
+    - Special characters in filenames (unicode, emojis, control characters)
+    - Extremely long file paths (>260 chars on Windows)
+    - Concurrent access scenarios
+    - Corrupted/incomplete data
+    - Timezone edge cases
+    - RTL languages
+  - **Malicious Inputs**:
+    - ZIP bombs with recursive compression
+    - Path traversal payloads
+    - Prototype pollution attempts
+    - XSS injection attempts
+    - SQL injection in metadata
+    - Command injection in terminal history
+    - Malformed JSON
+    - Oversized values (DoS attempts)
+
+#### 6.1.2 Unit Testing
+**Tasks:**
+- [ ] Achieve 95%+ code coverage across all packages
+- [ ] Test edge cases in all public APIs
+- [ ] Mock external dependencies (file system, network)
+- [ ] Test error handling paths
+- [ ] Test async operations and concurrency
+- [ ] Test memory leaks (long-running processes)
+
+#### 6.1.3 Integration Testing
+**Tasks:**
+- [ ] End-to-end workflows:
+  - Create .agent file → View in web → Export to desktop
+  - Import from Claude → Modify → Re-export
+  - Large project import → Search → Navigate
+- [ ] Cross-package integration tests
+- [ ] File system integration tests
+- [ ] Network failure scenarios
+
+#### 6.1.4 Property-Based Testing
+**Tasks:**
+- [ ] Use fast-check or similar for property tests:
+  - Round-trip serialization (save/load invariants)
+  - Merge operation associativity/commutativity
+  - Search query monotonicity
+  - Format validation idempotence
+- [ ] Generate random valid/invalid .agent files
+- [ ] Test with 1000+ random inputs per property
+
+#### 6.1.5 Cross-Platform Testing
+**Tasks:**
+- [ ] Matrix testing:
+  - **Desktop**: Windows 10/11, macOS 12-14, Ubuntu 22.04/24.04, Fedora, Arch
+  - **Web**: Chrome, Firefox, Safari, Edge (latest 2 versions)
+  - **Node**: Node.js 18, 20, 22 (LTS and current)
+- [ ] Automated testing via GitHub Actions
+- [ ] Platform-specific edge case tests
+
+#### 6.1.6 Performance Testing
+**Tasks:**
+- [ ] Benchmark suite:
+  - Load 1GB+ .agent files
+  - Search across 100k messages
+  - Render 10k message conversation
+  - Generate semantic map for 100k files
+  - Memory usage limits
+- [ ] Load testing:
+  - Concurrent .agent file opens
+  - Concurrent web viewers
+- [ ] Memory profiling
+- [ ] Optimization iteration based on findings
+
+#### 6.1.7 Security Testing
+**Tasks:**
+- [ ] **Static Analysis**:
+  - ESLint with security plugins
+  - TypeScript strict mode
+  - CodeQL queries for security issues
+  - Semgrep for vulnerability patterns
+- [ ] **Dynamic Analysis**:
+  - Fuzz testing
+  - Property-based testing with security invariants
+- [ ] **Dependency Security**:
+  - npm audit (fix all high/critical vulnerabilities)
+  - Snyk/Dependabot integration
+  - Supply chain security (npm provenance)
+- [ ] **Web Security**:
+  - OWASP ZAP scanning
+  - Content Security Policy validation
+  - XSS prevention testing
+- [ ] **Desktop Security**:
+  - Sandbox escape testing
+  - File system permission testing
+  - IPC security validation
+- [ ] **File Format Security**:
+  - Malicious .agent file testing corpus
+  - ZIP bomb protection validation
+  - Path traversal payload testing
+
+**Deliverable**: Comprehensive test suite with CI integration
+
+#### 6.1.8 Continuous Testing Infrastructure
+**Tasks:**
+- [ ] **CI Pipeline**:
+  - GitHub Actions workflow with test matrix
+  - Parallel test execution
+  - Test results reporting
+  - Flaky test detection
+  - Coverage tracking
+- [ ] **Automated Testing Schedule**:
+  - On every PR (unit + integration tests)
+  - Nightly (performance + security scans)
+  - Pre-release (complete test suite)
+
+### 6.2 Documentation
+**Tasks:**
+- [ ] Write user guide:
+  - Getting started tutorial
+  - How to export from Claude Code
+  - How to export from ChatGPT
+  - Viewer guide
+- [ ] Write developer documentation:
+  - Format specification
+  - API reference
+  - Contributing guide
+  - Plugin development guide
+- [ ] Create video demos:
+  - Overview
+  - Workflow tutorials
+- [ ] Build interactive examples
+- [ ] Set up documentation site
+
+**Deliverable**: Complete documentation
+
+---
+
+## Phase 7: Launch & Ecosystem
+
+### 7.1 Launch Preparation
+**Tasks:**
+- [ ] Set up website (landing page)
+- [ ] Create GitHub organization:
+  - Repo for main project
+  - Repo for format spec
+  - Repo for community plugins
+- [ ] Prepare launch assets:
+  - Logo, branding
+  - Screenshots, demos
+  - Press kit
+- [ ] Write announcement blog post
+- [ ] Prepare Product Hunt launch
+
+**Deliverable**: Launch-ready project
+
+### 7.2 Ecosystem & Plugins
+**Tasks:**
+- [ ] Design plugin API:
+  - Allow custom importers
+  - Allow custom viewers
+  - Allow custom semantic map generators
+- [ ] Create example plugins:
+  - Markdown importer
+  - JSON importer
+  - Custom viewer themes
+- [ ] Set up plugin registry
+- [ ] Create plugin template
+- [ ] Document community contribution process
+
+**Deliverable**: Plugin system with example plugins
+
+### 7.3 Community Importers
+**Encourage community to build importers for**:
+- Windsurf/Codeium
+- Tabnine
+- Sourcegraph Cody
+- Continue.dev
+- Other AI coding tools
+
+**Provide**:
+- Plugin API documentation
+- Example importer code
+- Testing utilities
+- Review process
+
+---
+
+## Security Considerations (Cross-Cutting)
+
+### Threat Model
+
+**Adversaries we protect against:**
+1. **Malicious .agent Files**: Files crafted to exploit vulnerabilities in the parser/viewer
+2. **Supply Chain Attacks**: Compromised dependencies or build infrastructure
+3. **Data Exfiltration**: Sensitive data in .agent files accessed by unauthorized parties
+4. **Tampering**: Modification of .agent files without detection
+5. **Resource Exhaustion**: ZIP bombs, oversized files causing DoS
+
+### Security Principles
+
+1. **Zero Trust**: Validate all input, even from "trusted" sources
+2. **Defense in Depth**: Multiple security layers (validation + sandboxing + encryption)
+3. **Principle of Least Privilege**: Minimal permissions, scoped capabilities
+4. **Secure by Default**: Security features enabled, not opt-in
+5. **Transparency**: Open security process, public vulnerability disclosure
+
+### Security Requirements by Component
+
+#### File Format Security
+- [ ] **Input Validation**:
+  - All file paths validated against allowlist regex
+  - Maximum sizes enforced (500MB total, 100MB per file)
+  - Maximum entry count (10,000 files)
+  - Depth limits on nested structures (max 50 levels)
+  - String length limits (1MB per string)
+- [ ] **ZIP Security**:
+  - Validate uncompressed size ≤ 10× compressed size
+  - Reject files with > 10,000 entries
+  - Path traversal prevention (check for `..` and absolute paths)
+  - Use streaming parser to avoid memory bombs
+- [ ] **JSON Security**:
+  - Sanitize against prototype pollution
+  - Limit total JSON size (10MB per manifest)
+  - Reject duplicate keys
+  - Use strict JSON parsing (no JS eval)
+- [ ] **Integrity**:
+  - SHA-256 hashes for all components
+  - Merkle tree for large files
+  - Hash chain for tamper detection
+  - Optional Ed25519 digital signatures
+
+#### Web Viewer Security
+- [ ] **Content Security**:
+  - Strict Content-Security-Policy header
+  - Sanitize all HTML (DOMPurify)
+  - No `eval()` or `innerHTML` with user content
+  - Trusted Types API adoption
+- [ ] **XSS Prevention**:
+  - All user input escaped/encoded
+  - Auto-escaping in templates
+  - CSP `script-src 'self'`
+  - Regular XSS testing
+- [ ] **Data Handling**:
+  - No server-side storage (client-side only)
+  - No analytics without explicit consent
+  - Optional local-only mode
+- [ ] **HTTPS Only**:
+  - HSTS enabled
+  - Secure cookies (if used)
+
+#### Desktop Viewer Security
+- [ ] **Sandboxing**:
+  - Tauri capabilities system
+  - File system access only via user dialogs
+  - Network access only on explicit user action
+  - No subprocess execution from .agent content
+- [ ] **Credential Storage**:
+  - Use OS credential managers (DPAPI, Keychain, libsecret)
+  - Never store passwords in plaintext
+  - Secure memory handling (zero sensitive data after use)
+- [ ] **Code Signing**:
+  - Binaries signed for all platforms
+  - Certificate revocation checking
+- [ ] **Updates**:
+  - Signed updates only
+  - Update verification before installation
+  - Rollback capability
+
+#### Data Protection
+- [ ] **Encryption at Rest**:
+  - AES-256-GCM for sensitive .agent files
+  - PBKDF2 with 600,000 iterations
+  - Random IV per encryption
+  - Optional per-file passwords
+- [ ] **Encryption in Transit**:
+  - TLS 1.3 for network communication
+- [ ] **Key Management**:
+  - Never hardcode keys
+  - Secure key derivation
+
+### Security Development Practices
+
+#### Development Phase
+- [ ] **Code Review**:
+  - 2+ reviewers for all security-sensitive code
+  - Security review checklist for all PRs
+- [ ] **Static Analysis**:
+  - ESLint with security plugins in CI
+  - CodeQL queries on all PRs
+  - TypeScript strict mode (no `any`)
+  - Dependabot and Snyk integration
+- [ ] **Secrets Management**:
+  - No secrets in code/git
+  - Environment variables for secrets
+
+#### Testing Phase
+- [ ] **Security Testing**:
+  - Fuzz testing
+  - Property-based testing with security invariants
+  - Penetration testing before launch
+- [ ] **Vulnerability Scanning**:
+  - OWASP ZAP for web viewer
+  - npm audit for dependencies
+- [ ] **Security Audits**:
+  - Third-party audit before v1.0
+  - Publish audit reports (transparency)
+
+#### Deployment Phase
+- [ ] **Supply Chain Security**:
+  - Reproducible builds
+  - SBOM for all releases
+  - npm provenance for packages
+  - Signed releases
+- [ ] **Incident Response**:
+  - Documented response process
+  - Security mailing list
+  - CVE assignment process
+
+### Compliance & Standards
+
+- [ ] **OWASP Top 10**: Mitigate all top 10 web vulnerabilities
+- [ ] **CWE/SANS**: Address top 25 most dangerous software errors
+- [ ] **GDPR**: Data protection compliance (EU users)
+- [ ] **CCPA**: Privacy compliance (California users)
+
+---
+
+## Success Metrics
+
+### Technical Metrics
+
+#### Performance Requirements
+- [ ] **File Size**: .agent file < 3MB for typical conversation (100 messages with 10 assets)
+- [ ] **Load Time**: < 1 second for web viewer (50th percentile), < 2s (95th percentile)
+- [ ] **Memory Usage**: < 300MB for desktop viewer at idle, < 1GB peak
+- [ ] **Large File Support**: Handle 1GB .agent files without crashing
+- [ ] **Search Performance**: < 100ms for full-text search across 100k messages
+- [ ] **Semantic Map Generation**: < 10s for 10k files, < 60s for 100k files
+- [ ] **Compression Ratio**: > 60% size reduction for text-heavy content
+
+#### Quality Metrics
+- [ ] **Test Coverage**: 95%+ code coverage across all packages
+- [ ] **Type Safety**: 100% TypeScript strict mode compliance, zero `any` types
+- [ ] **Security**: Zero high/critical vulnerabilities (npm audit, Snyk)
+- [ ] **Format Validation**: 100% of valid test corpus passes validation
+- [ ] **Malicious File Detection**: 100% of malicious test corpus rejected
+- [ ] **Language Support**: Semantic map supports 20+ programming languages
+- [ ] **Cross-Platform**: All features work identically on Windows/macOS/Linux
+- [ ] **Browser Support**: Chrome/Firefox/Safari/Edge (latest 2 versions)
+
+#### Security Requirements
+- [ ] **Static Analysis**: Zero critical/high findings from CodeQL/Semgrep
+- [ ] **Dependency Security**: All dependencies have verified provenance
+- [ ] **Supply Chain**: SBOM generated for all releases
+- [ ] **Code Review**: 100% of code reviewed by 2+ developers
+- [ ] **Security Audit**: Third-party audit completed before v1.0
+- [ ] **Penetration Testing**: Zero critical findings in final audit
+- [ ] **Encryption**: All sensitive data supports AES-256-GCM encryption
+- [ ] **Sandboxing**: Desktop app runs in OS-level sandbox
+- [ ] **Authentication**: Digital signatures supported and verified
+
+#### Reliability Metrics
+- [ ] **Crash Rate**: < 0.1% sessions
+- [ ] **Data Loss**: Zero incidents of user data loss (integrity checks)
+- [ ] **Recovery**: Graceful degradation on corrupt data (never crash)
+- [ ] **Backwards Compatibility**: All v0.x files readable in v1.0
+- [ ] **Error Handling**: All async operations properly handle errors
+
+### Adoption Metrics
+
+#### Community Engagement
+- [ ] **GitHub Stars**: Active community engagement
+- [ ] **Active Users**: Measured via npm installs
+- [ ] **Community Files**: .agent files created/shared by community
+- [ ] **Plugins**: Community plugins
+- [ ] **Contributors**: External contributors to core repo
+
+#### Platform Integration
+- [ ] **Native Support**: AI tools with official importers
+- [ ] **Third-Party Adoption**: AI tools natively export .agent format
+- [ ] **Enterprise Interest**: Enterprise pilots/beta programs
+
+#### Ecosystem Growth
+- [ ] **Documentation**: 100% of APIs documented with examples
+- [ ] **Tutorials**: Video tutorials, written guides
+- [ ] **Blog Posts**: Community blog posts/tweets about .agent
+- [ ] **Conference Talks**: Conference talks about .agent format
+
+---
+
+## Open Questions & Decisions Needed
+
+1. **LLM API Integration**: Should we embed an LLM API key for intelligent semantic map summarization? (Cost vs quality tradeoff)
+2. **Cloud Storage**: Should we offer optional cloud sync for .agent files? (Privacy vs convenience)
+3. **Collaboration**: Should .agent files support merge/collaboration? (Complexity vs utility)
+4. **Business Model**: Open source with paid hosting? Freemium? Enterprise features?
+
+---
+
+## Risk Mitigation
+
+| Risk | Impact | Probability | Mitigation Strategy |
+|------|--------|-------------|-------------------|
+| **Security Vulnerabilities** | Critical | Medium | - Security audits before launch<br>- Bug bounty program<br>- Regular penetration testing<br>- Secure development practices<br>- Incident response plan |
+| **AI tools change export formats** | High | High | - Build flexible, extensible parser<br>- Version the format carefully<br>- Community contributions for new formats<br>- Maintain format backward compatibility |
+| **Performance issues with large files** | High | Medium | - Streaming architecture<br>- Lazy loading for large components<br>- Compression optimization<br>- Performance benchmarks in CI<br>- Regular profiling |
+| **ZIP bomb / DoS attacks** | Critical | Low | - Uncompressed size limits (10× compressed)<br>- Maximum entry count limits<br>- Streaming parser (no full load)<br>- Memory limits<br>- Input validation |
+| **Supply chain attacks** | Critical | Medium | - Dependency pinning<br>- npm provenance verification<br>- SBOM generation<br>- Regular dependency updates<br>- Code signing for all releases |
+| **Data loss from corruption** | High | Low | - Integrity checks (SHA-256)<br>- Redundant storage options<br>- Recovery tools<br>- Comprehensive backup docs<br>- Test with corrupted files |
+| **Low adoption / Network effects** | Medium | Medium | - Focus on exceptional DX<br>- Viral loops (shareable .agent files)<br>- Community plugins<br>- Integration with major tools<br>- Conference talks & content |
+| **Platform fragmentation** | Medium | Medium | - Cross-platform from day one<br>- Automated testing matrix<br>- Platform-specific optimizations<br>- Regular platform testing |
+| **Legal / IP issues** | Medium | Low | - Clear licensing (MIT)<br>- Data privacy compliance (GDPR, CCPA)<br>- Terms of service for hosted viewer<br>- User data ownership statement |
+| **Malware via .agent files** | Critical | Low | - Sandboxing in desktop app<br>- No code execution from content<br>- Web viewer sanitization<br>- Security scanning<br>- User warnings for unsigned files |
+| **Performance regressions** | Medium | Medium | - Performance tests in CI<br>- Benchmark tracking<br>- Load testing before releases<br>- Profiling tools<br>- Performance budgets |
+| **Backwards compatibility breaks** | High | Low | - Semantic versioning<br>- Deprecation warnings<br>- Migration tools<br>- Test suite with old files<br>- Communication plan |
+| **Browser compatibility issues** | Medium | Low | - Cross-browser testing<br>- Progressive enhancement<br>- Polyfills for older browsers<br>- Regular browser testing |
+| **Accessibility compliance gaps** | Medium | Low | - WCAG AA compliance from start<br>- Regular a11y audits<br>- Screen reader testing<br>- Accessibility statement |
+
+---
+
+## MVP Definition
+
+### MVP Scope (v1.0)
+
+**Included**:
+- ✅ .agent file format specification
+- ✅ Core format library with security features
+- ✅ Claude Code importer (local + API)
+- ✅ ChatGPT importer (official export)
+- ✅ Manual/clipboard importer (for Cursor and other tools)
+- ✅ Web viewer (full-featured)
+- ✅ Desktop viewer (Tauri)
+- ✅ CLI tool (core commands)
+- ✅ Comprehensive testing
+- ✅ Documentation
+
+**Deferred to Post-MVP**:
+- ⏸️ Cursor direct importer (legal risks)
+- ⏸️ Windsurf, Tabnine, other tool importers
+- ⏸️ Advanced plugin system
+- ⏸️ Cloud sync
+- ⏸️ Collaboration features
+- ⏸️ LLM integration for semantic summaries
+
+**Success Criteria for MVP**:
+1. Users can export conversations from Claude and ChatGPT
+2. Users can view .agent files in web and desktop viewers
+3. Format is secure, performant, and well-documented
+4. Community can build additional importers using plugin API
+
+---
+
+## Next Steps
+
+**Phase 0 Complete**: All research and validation finished. Ready to begin implementation.
+
+**Immediate Actions**:
+1. Set up monorepo with Tauri + Next.js
+2. Create .agent format specification
+3. Implement core `AgentFile` class with ZIP security
+4. Build Claude importer
+5. Build ChatGPT importer
+6. Create basic web viewer
+7. Test with real conversations
+
+**For detailed Phase 0 findings**, see `phase-0-report.md`.
+
+---
+
+**Last Updated**: 2026-03-27
+**Status**: ✅ Phase 0 Complete | Ready for Phase 1 Implementation
+**Desktop Framework**: Tauri
+**MVP Importers**: Claude Code + ChatGPT (+ manual/clipboard)
+**License**: MIT
+
+---
+
+**Security Posture**: Security-first approach with comprehensive threat modeling and secure development practices
+
+**Testing Philosophy**: Test coverage target 95%+, property-based testing, fuzz testing, and continuous quality gates

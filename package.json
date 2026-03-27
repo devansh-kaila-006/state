@@ -1,0 +1,35 @@
+{
+  "name": "state-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "State (.agent) - Portable context standard for AI conversations",
+  "scripts": {
+    "dev": "pnpm --filter \"./packages/**\" dev",
+    "build": "pnpm --filter \"./packages/**\" build",
+    "test": "pnpm --filter \"./packages/**\" test",
+    "lint": "pnpm --filter \"./packages/**\" lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "typecheck": "pnpm --filter \"./packages/**\" typecheck",
+    "clean": "pnpm --filter \"./packages/**\" clean && rm -rf node_modules"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "conversation",
+    "portable",
+    "context",
+    "llm"
+  ],
+  "author": "State Project Contributors",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "prettier": "^3.2.4",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

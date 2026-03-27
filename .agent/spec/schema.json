@@ -1,0 +1,464 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://state.dev/.agent/spec/schema.json",
+  "title": "Agent File Format",
+  "description": "Portable context standard for AI conversations",
+  "type": "object",
+  "required": ["manifest"],
+  "properties": {
+    "manifest": {
+      "$ref": "#/definitions/manifest"
+    }
+  },
+  "definitions": {
+    "manifest": {
+      "type": "object",
+      "description": "Root manifest containing metadata about the .agent file",
+      "required": [
+        "version",
+        "format",
+        "created_at",
+        "source_tool",
+        "encryption"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Format version (semver)",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "example": "1.0.0"
+        },
+        "format": {
+          "type": "string",
+          "const": "agent",
+          "description": "Format identifier"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of file creation"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of last update"
+        },
+        "source_tool": {
+          "type": "object",
+          "description": "Information about the source AI tool",
+          "required": ["name", "version"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "enum": ["claude", "chatgpt", "manual", "other"],
+              "description": "Source tool name"
+            },
+            "version": {
+              "type": "string",
+              "description": "Tool version or API version"
+            },
+            "model": {
+              "type": "string",
+              "description": "AI model used (e.g., 'claude-3-opus-20240229')"
+            }
+          }
+        },
+        "encryption": {
+          "type": "object",
+          "description": "Encryption metadata",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether the file is encrypted"
+            },
+            "algorithm": {
+              "type": "string",
+              "enum": ["AES-256-GCM"],
+              "description": "Encryption algorithm used"
+            },
+            "key_derivation": {
+              "type": "string",
+              "enum": ["PBKDF2"],
+              "description": "Key derivation function"
+            },
+            "iterations": {
+              "type": "integer",
+              "description": "KDF iterations",
+              "minimum": 100000,
+              "example": 600000
+            }
+          }
+        },
+        "signature": {
+          "type": "object",
+          "description": "Digital signature metadata",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether the file is signed"
+            },
+            "algorithm": {
+              "type": "string",
+              "enum": ["Ed25519"],
+              "description": "Signature algorithm"
+            },
+            "public_key": {
+              "type": "string",
+              "description": "Hex-encoded public key"
+            },
+            "signature": {
+              "type": "string",
+              "description": "Hex-encoded signature"
+            }
+          }
+        },
+        "components": {
+          "type": "array",
+          "description": "List of components in the archive",
+          "items": {
+            "type": "object",
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path within the archive"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "SHA-256 hash of the component"
+              },
+              "size": {
+                "type": "integer",
+                "description": "Uncompressed size in bytes"
+              }
+            }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Additional metadata",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Conversation title"
+            },
+            "description": {
+              "type": "string",
+              "description": "Conversation description"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "User-defined tags"
+            },
+            "language": {
+              "type": "string",
+              "description": "Primary programming language"
+            },
+            "project_name": {
+              "type": "string",
+              "description": "Associated project name"
+            }
+          }
+        }
+      }
+    },
+    "conversation": {
+      "type": "object",
+      "description": "AI conversation data",
+      "required": ["messages"],
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/message"
+          }
+        },
+        "context": {
+          "type": "object",
+          "description": "Conversation context",
+          "properties": {
+            "system_prompt": {
+              "type": "string"
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "message": {
+      "type": "object",
+      "required": ["role", "content", "timestamp"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique message identifier"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "assistant", "system", "tool"],
+          "description": "Message role"
+        },
+        "content": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/content_block"
+              }
+            }
+          ]
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model that generated this message"
+        },
+        "tools_used": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/tool_use"
+          }
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Cited documents or sources"
+        }
+      }
+    },
+    "content_block": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["text", "code", "image", "artifact"]
+        },
+        "text": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string",
+          "description": "Programming language for code blocks"
+        },
+        "artifact_id": {
+          "type": "string",
+          "description": "Reference to artifact in assets/"
+        }
+      }
+    },
+    "tool_use": {
+      "type": "object",
+      "required": ["name", "input"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "input": {
+          "type": "object"
+        },
+        "output": {
+          "type": "object"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "semantic_map": {
+      "type": "object",
+      "description": "Project structure and code relationships",
+      "required": ["files"],
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/file_info"
+          }
+        },
+        "dependencies": {
+          "type": "object",
+          "description": "Dependency graph",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "summaries": {
+          "type": "object",
+          "description": "File-level summaries",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "file_info": {
+      "type": "object",
+      "required": ["path", "language"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path from project root"
+        },
+        "language": {
+          "type": "string",
+          "description": "Programming language"
+        },
+        "size": {
+          "type": "integer",
+          "description": "File size in bytes"
+        },
+        "modified": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Function/class names"
+        },
+        "imports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Imported modules"
+        }
+      }
+    },
+    "terminal": {
+      "type": "object",
+      "description": "Terminal session history",
+      "properties": {
+        "sessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/terminal_session"
+          }
+        }
+      }
+    },
+    "terminal_session": {
+      "type": "object",
+      "required": ["commands"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "working_directory": {
+          "type": "string"
+        },
+        "shell": {
+          "type": "string"
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/terminal_command"
+          }
+        }
+      }
+    },
+    "terminal_command": {
+      "type": "object",
+      "required": ["command", "timestamp"],
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "output": {
+          "type": "string"
+        },
+        "duration_ms": {
+          "type": "integer"
+        }
+      }
+    },
+    "future_plan": {
+      "type": "object",
+      "description": "Next steps and action items",
+      "properties": {
+        "plan": {
+          "type": "string",
+          "description": "Markdown-formatted plan"
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/task"
+          }
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": ["id", "title", "status"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "completed", "blocked"]
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assigned_to": {
+          "type": "string"
+        },
+        "due_date": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
