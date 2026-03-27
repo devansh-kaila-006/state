@@ -976,16 +976,16 @@ state/
 ### MVP Scope (v1.0)
 
 **Included**:
-- ✅ .agent file format specification
-- ✅ Core format library with security features
-- ✅ Claude Code importer (local + API)
-- ✅ ChatGPT importer (official export)
-- ✅ Manual/clipboard importer (for Cursor and other tools)
-- ✅ Web viewer (full-featured)
-- ✅ Desktop viewer (Tauri)
-- ✅ CLI tool (core commands)
-- ✅ Comprehensive testing
-- ✅ Documentation
+- ✅ .agent file format specification (Phase 1 - COMPLETE)
+- ✅ Core format library with security features (Phase 2 - COMPLETE)
+- ✅ Claude Code importer (local + API placeholder) (Phase 3 - COMPLETE)
+- ✅ ChatGPT importer (official export) (Phase 3 - COMPLETE)
+- ✅ Manual/clipboard importer (for Cursor and other tools) (Phase 3 - COMPLETE)
+- ⏸️ Web viewer (full-featured) (Phase 4 - PENDING)
+- ⏸️ Desktop viewer (Tauri) (Phase 4 - PENDING)
+- ⏸️ CLI tool (core commands) (Phase 5 - PENDING)
+- ⏸️ Comprehensive testing (Phase 6 - PENDING)
+- ✅ Documentation (Phases 1-3 - COMPLETE)
 
 **Deferred to Post-MVP**:
 - ⏸️ Cursor direct importer (legal risks)
@@ -996,27 +996,38 @@ state/
 - ⏸️ LLM integration for semantic summaries
 
 **Success Criteria for MVP**:
-1. Users can export conversations from Claude and ChatGPT
-2. Users can view .agent files in web and desktop viewers
-3. Format is secure, performant, and well-documented
-4. Community can build additional importers using plugin API
+1. ✅ Users can export conversations from Claude and ChatGPT (Phase 3 - COMPLETE)
+2. ⏸️ Users can view .agent files in web and desktop viewers (Phase 4 - PENDING)
+3. ✅ Format is secure, performant, and well-documented (Phases 1-2 - COMPLETE)
+4. ⏸️ Community can build additional importers using plugin API (Phase 7 - PENDING)
 
 ---
 
 ## Next Steps
 
-**Phase 0 Complete**: All research and validation finished. Ready to begin implementation.
+**Phase 3 Complete**: All three MVP importers (Claude, ChatGPT, Manual/Clipboard) are fully implemented and documented.
 
-**Immediate Actions**:
-1. Set up monorepo with Tauri + Next.js
-2. Create .agent format specification
-3. Implement core `AgentFile` class with ZIP security
-4. Build Claude importer
-5. Build ChatGPT importer
-6. Create basic web viewer
-7. Test with real conversations
+**Completed Phases**:
+- ✅ **Phase 0**: Research & Validation - All findings documented in `phase-0-report.md`
+- ✅ **Phase 1**: Foundation & Specification - Format spec, tech stack, project setup (see `PHASE-1-COMPLETE.md`)
+- ✅ **Phase 2**: Core Format Implementation - Encryption, signatures, semantic maps, testing (see `PHASE-2-COMPLETE.md`)
+- ✅ **Phase 3**: Importer Development - Claude, ChatGPT, Manual/Clipboard importers (see `PHASE-3-COMPLETE.md`)
 
-**For detailed Phase 0 findings**, see `phase-0-report.md`.
+**Immediate Actions for Phase 4**:
+1. Set up Next.js 14 web viewer project with App Router
+2. Design UI/UX for .agent file viewing (split-pane layout, dark mode)
+3. Implement file upload/drag-drop functionality
+4. Build conversation viewer component with syntax highlighting
+5. Build semantic map viewer with interactive file tree
+6. Build terminal history viewer with syntax highlighting
+7. Build future plan viewer with task checklist
+8. Add export features (PDF, markdown, shareable URLs)
+
+**For detailed findings from completed phases**, see:
+- `phase-0-report.md` - Phase 0 research findings
+- `PHASE-1-COMPLETE.md` - Phase 1 completion summary
+- `PHASE-2-COMPLETE.md` - Phase 2 completion summary
+- `PHASE-3-COMPLETE.md` - Phase 3 completion summary
 
 ---
 
