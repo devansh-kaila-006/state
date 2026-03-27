@@ -1,40 +1,35 @@
 {
-  "name": "@state/format",
+  "name": "@state/importer-manual",
   "version": "0.1.0",
-  "description": "Core .agent file format library",
+  "description": "Manual/clipboard importer for .agent files",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "vitest",
-    "test:unit": "vitest run '*.test.ts'",
-    "test:security": "vitest run 'security.test.ts'",
-    "test:properties": "vitest run 'properties.test.ts'",
-    "test:coverage": "vitest --coverage",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "keywords": [
+    "manual",
+    "clipboard",
+    "importer",
     "agent",
-    "format",
-    "zip",
-    "conversation"
+    "universal"
   ],
   "author": "State Project Contributors",
   "license": "MIT",
   "dependencies": {
-    "jszip": "^3.10.1"
+    "@state/format": "workspace:*",
+    "clipboardy": "^3.0.0"
   },
   "devDependencies": {
-    "@types/jszip": "^3.4.1",
     "@types/node": "^20.11.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "eslint": "^8.56.0",
-    "eslint-plugin-security": "^1.7.1",
-    "fast-check": "^3.15.0",
     "typescript": "^5.3.3",
     "vitest": "^1.2.1"
   }
