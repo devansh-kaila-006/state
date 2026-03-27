@@ -1,0 +1,50 @@
+{
+  "name": "@state/cli",
+  "version": "0.1.0",
+  "description": "CLI tool for .agent files",
+  "main": "./dist/index.js",
+  "bin": {
+    "state": "./dist/cli.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "cli",
+    "agent",
+    "state",
+    "command-line"
+  ],
+  "author": "State Project Contributors",
+  "license": "MIT",
+  "dependencies": {
+    "@state/format": "workspace:*",
+    "@state/importer-claude": "workspace:*",
+    "@state/importer-chatgpt": "workspace:*",
+    "@state/importer-manual": "workspace:*",
+    "commander": "^12.0.0",
+    "inquirer": "^9.2.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.0",
+    "cli-progress": "^3.12.0",
+    "open": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/inquirer": "^9.0.0",
+    "@types/cli-progress": "^3.11.0",
+    "@types/progress": "^2.0.5",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  }
+}
