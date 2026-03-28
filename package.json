@@ -6,12 +6,34 @@
   "scripts": {
     "dev": "pnpm --filter \"./packages/**\" dev",
     "build": "pnpm --filter \"./packages/**\" build",
-    "test": "pnpm --filter \"./packages/**\" test",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "test:unit": "vitest run --run packages/**/*.test.ts",
+    "test:integration": "vitest run --run packages/**/*.integration.test.ts",
+    "test:e2e": "vitest run --run test/**/*.test.ts",
+    "test:all": "pnpm test:unit && pnpm test:integration && pnpm test:e2e",
+    "test:properties": "vitest run --run packages/format/src/properties*.test.ts",
+    "test:fuzz": "vitest run --run packages/format/src/fuzzing.test.ts",
+    "test:cross-platform": "vitest run --run packages/format/src/cross-platform.test.ts",
+    "test:perf-opt": "vitest run --run packages/format/src/performance-optimization.test.ts",
+    "test:benchmark": "vitest run --run packages/format/src/performance.test.ts",
+    "test:generate-corpus": "tsx test/test-data-generator.ts corpus ./test-corpus 20",
+    "test:generate-large": "tsx test/test-data-generator.ts large 1000",
+    "test:generate-full-corpus": "tsx scripts/generate-test-corpus.ts ./test-corpus-full",
+    "test:comprehensive": "pnpm test:all && pnpm test:properties && pnpm test:fuzz && pnpm test:cross-platform && pnpm test:perf-opt",
     "lint": "pnpm --filter \"./packages/**\" lint",
+    "lint:security": "pnpm audit --audit-level moderate",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "typecheck": "pnpm --filter \"./packages/**\" typecheck",
-    "clean": "pnpm --filter \"./packages/**\" clean && rm -rf node_modules"
+    "clean": "pnpm --filter \"./packages/**\" clean && rm -rf node_modules",
+    "clean:test": "rm -rf test-temp test-e2e-temp test-corpus test-results coverage",
+    "audit:security": "tsx scripts/security-audit.ts",
+    "audit:security-full": "tsx scripts/security-validation.ts",
+    "audit:dependencies": "pnpm audit --audit-level moderate",
+    "audit:licenses": "pnpm list --depth=0"
   },
   "keywords": [
     "ai",
@@ -25,8 +47,13 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "@vitest/ui": "^1.2.0",
+    "@vitest/coverage-v8": "^1.2.0",
+    "fast-check": "^3.15.0",
     "prettier": "^3.2.4",
-    "typescript": "^5.3.3"
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
   },
   "engines": {
     "node": ">=18.0.0",
